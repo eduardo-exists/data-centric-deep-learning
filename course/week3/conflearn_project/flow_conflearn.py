@@ -156,18 +156,35 @@ class TrainIdentifyReview(FlowSpec):
       # Pseudocode:
       # --
       # Get train and test slices of X and y.
+      X_train, X_test= X[train_index], X[test_index]
+      y_train, y_test = y[train_index], y[test_index]
+      
       # Convert to torch tensors.
       # Create train/test datasets using tensors.
       # Create train/test data loaders from datasets.
+      train_loader = DataLoader(TensorDataset(torch.Tensor(X_train), torch.Tensor(y_train)))
+      test_loader = DataLoader(TensorDataset(torch.Tensor(X_test), torch.Tensor(y_test)))
+
       # Create `SentimentClassifierSystem`.
+      system = SentimentClassifierSystem(self.config)
+      print('Training now!')      
       # Create `Trainer` and call `fit`.
+      trainer = Trainer(max_epochs = self.config.train.optimizer.max_epochs)
+      trainer.fit(system, train_loader)
+
       # Call `predict` on `Trainer` and the test data loader.
+      print('Predicting now!')
+      probs_ = trainer.predict(system, test_loader)
+
       # Convert probabilities back to numpy (make sure 1D).
-      # 
+      probs_ = probs_.squeeze(0)        # squeeze to (10) shape
+      probs_ = probs_.numpy().tolist() 
+
       # Types:
       # --
       # probs_: np.array[float] (shape: |test set|)
       # ===============================================
+      print(probs_)
       assert probs_ is not None, "`probs_` is not defined."
       probs[test_index] = probs_
 
@@ -212,6 +229,7 @@ class TrainIdentifyReview(FlowSpec):
     # --
     # ranked_label_issues: List[int]
     # =============================
+    ranked_label_issues = find_label_issues(self.all_df.label, prob, return_indices_ranked_by="self_confidence")
     assert ranked_label_issues is not None, "`ranked_label_issues` not defined."
 
     # save this to class
@@ -308,6 +326,9 @@ class TrainIdentifyReview(FlowSpec):
     # dm.dev_dataset.data = dev slice of self.all_df
     # dm.test_dataset.data = test slice of self.all_df
     # # ====================================
+    dm.train_dataset.data = self.all_df.iloc[0:train_size]
+    dm.dev_dataset.data = self.all_df.iloc[train_size:dev_size]
+    dm.test_dataset.data = self.all_df.iloc[dev_size:-1]
 
     # start from scratch
     system = SentimentClassifierSystem(self.config)
